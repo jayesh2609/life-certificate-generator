@@ -1,0 +1,6 @@
+Flask
+Pillow
+pytesseract
+opencv-python
+reportlab
+gunicorn
