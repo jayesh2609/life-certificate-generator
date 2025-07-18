@@ -99,7 +99,6 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    # **FIX IS HERE**: Added a master error-catching block
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file part"}), 400
@@ -113,12 +112,21 @@ def upload_file():
             image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(image_path)
             
+            # --- OPTIMIZATION: Resize large images to save memory ---
+            img = cv2.imread(image_path)
+            h, w, _ = img.shape
+            # If the image width is greater than 1200 pixels, resize it
+            if w > 1200:
+                new_h = int(h * (1200 / w))
+                img_resized = cv2.resize(img, (1200, new_h))
+                cv2.imwrite(image_path, img_resized) # Save the resized image over the original
+            
             extracted_text = pytesseract.image_to_string(image_path)
             beneficiary_details = extract_details_from_text(extracted_text)
 
             pdf_filename = f"LifeCertificate-{unique_id}.pdf"
             pdf_path = os.path.join(app.config['GENERATED_FOLDER'], pdf_filename)
-            # Temporarily removed photo extraction to simplify
+            # I've removed the photo extraction part to ensure stability
             generate_certificate_pdf(beneficiary_details, pdf_path)
             
             os.remove(image_path)
@@ -126,7 +134,6 @@ def upload_file():
             return jsonify({"pdf_filename": pdf_filename})
 
     except Exception as e:
-        # This will force the error to be printed to the logs
         print("--- AN ERROR OCCURRED IN THE UPLOAD ROUTE ---")
         traceback.print_exc()
         print("---------------------------------------------")

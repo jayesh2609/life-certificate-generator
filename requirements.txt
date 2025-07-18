@@ -1,6 +1,6 @@
 Flask
 Pillow
 pytesseract
-opencv-python
+opencv-python-headless
 reportlab
 gunicorn
