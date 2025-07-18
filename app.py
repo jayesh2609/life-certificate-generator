@@ -3,7 +3,7 @@ import re
 import uuid
 import cv2
 import pytesseract
-import traceback # Import the traceback module
+import traceback
 from flask import Flask, request, render_template, jsonify, send_from_directory
 
 from reportlab.lib import colors
@@ -25,7 +25,32 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['GENERATED_FOLDER'] = GENERATED_FOLDER
 
-# --- DATA & PDF FUNCTIONS (No changes here) ---
+# --- IMAGE, DATA, & PDF FUNCTIONS ---
+
+def extract_and_save_photo(image_path, output_path):
+    try:
+        img = cv2.imread(image_path)
+        # We use the resized image, so this will be memory efficient
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        edges = cv2.Canny(gray, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = w / float(h)
+            if 0.7 < aspect_ratio < 1.0 and w > 50 and h > 50: # Reduced size check for resized image
+                margin = 5
+                # Crop from the original color image before it was potentially resized for OCR
+                original_img = cv2.imread(image_path) 
+                photo_crop = original_img[y-margin:y+h+margin, x-margin:x+w+margin]
+                cv2.imwrite(output_path, photo_crop)
+                return True
+        return False
+    except Exception as e:
+        print(f"Error in photo extraction: {e}")
+        return False
 
 def extract_details_from_text(text):
     details = {
@@ -33,7 +58,7 @@ def extract_details_from_text(text):
         "Certificate Number": "N/A", "Scheme": "N/A", "Aadhaar": "N/A",
         "Mobile No": "N/A", "Category": "N/A", "Scheme Belongs To": "N/A"
     }
-    match_date = re.search(r"as on\s*(\d{2}-\d{2}-\d{4})", text)
+    match_date = re.search(r"as on\s*(\d{2}-\d{2}-\d{4})", text);
     if match_date: details["Date"] = match_date.group(1)
     match_time = re.search(r"as on\s*\d{2}-\d{2}-\d{4}\s*(\d{2}:\d{2}:\d{2})", text)
     if match_time: details["Time"] = match_time.group(1)
@@ -52,13 +77,12 @@ def extract_details_from_text(text):
     match_cat = re.search(r"Cat/Gen:\s*(\S+)", text)
     if match_cat: details["Category"] = match_cat.group(1)
     match_scheme = re.search(r"Scheme:\s*(.*?)\s*Name:", text, re.DOTALL)
-    if match_scheme:
-        details["Scheme"] = " ".join(match_scheme.group(1).strip().split())
+    if match_scheme: details["Scheme"] = " ".join(match_scheme.group(1).strip().split())
     match_belongs_to = re.search(r"Scheme Belongs to:\s*(.*)", text, re.IGNORECASE)
     if match_belongs_to: details["Scheme Belongs To"] = match_belongs_to.group(1).strip()
     return details
 
-def generate_certificate_pdf(details, pdf_path):
+def generate_certificate_pdf(details, photo_path, pdf_path):
     doc = SimpleDocTemplate(pdf_path, pagesize=letter, topMargin=0.75*inch, leftMargin=0.75*inch, rightMargin=0.75*inch)
     styles = getSampleStyleSheet()
     styles['Normal'].fontSize = 12
@@ -78,6 +102,11 @@ def generate_certificate_pdf(details, pdf_path):
                   f"vide BSA ID - <b>{details.get('Certificate Number', 'N/A')}</b>.")
     story.append(Paragraph(intro_text, styles['Justified']))
     story.append(Spacer(1, 0.25 * inch))
+    if photo_path and os.path.exists(photo_path):
+        img = Image(photo_path, width=1.5*inch, height=1.9*inch)
+        img.hAlign = 'LEFT'
+        story.append(img)
+        story.append(Spacer(1, 0.25 * inch))
     table_data = [['Aadhaar Number (Masked)', Paragraph(details.get('Aadhaar', 'N/A'), styles['Normal'])],
                   ['Beneficiary ID', Paragraph(details.get('Beneficiary ID', 'N/A'), styles['Normal'])],
                   ['Scheme Name', Paragraph(details.get('Scheme', 'N/A'), styles['Normal'])],
@@ -100,36 +129,36 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file part"}), 400
+        if 'file' not in request.files: return jsonify({"error": "No file part"}), 400
         file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
-
+        if file.filename == '': return jsonify({"error": "No selected file"}), 400
         if file:
             unique_id = str(uuid.uuid4())
             filename = unique_id + os.path.splitext(file.filename)[1]
             image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(image_path)
             
-            # --- OPTIMIZATION: Resize large images to save memory ---
             img = cv2.imread(image_path)
             h, w, _ = img.shape
-            # If the image width is greater than 1200 pixels, resize it
             if w > 1200:
                 new_h = int(h * (1200 / w))
                 img_resized = cv2.resize(img, (1200, new_h))
-                cv2.imwrite(image_path, img_resized) # Save the resized image over the original
+                cv2.imwrite(image_path, img_resized)
             
+            # Re-enable photo extraction
+            photo_filename = f"photo_{unique_id}.jpg"
+            photo_path = os.path.join(app.config['GENERATED_FOLDER'], photo_filename)
+            photo_found = extract_and_save_photo(image_path, photo_path)
+
             extracted_text = pytesseract.image_to_string(image_path)
             beneficiary_details = extract_details_from_text(extracted_text)
 
             pdf_filename = f"LifeCertificate-{unique_id}.pdf"
             pdf_path = os.path.join(app.config['GENERATED_FOLDER'], pdf_filename)
-            # I've removed the photo extraction part to ensure stability
-            generate_certificate_pdf(beneficiary_details, pdf_path)
+            generate_certificate_pdf(beneficiary_details, photo_path if photo_found else None, pdf_path)
             
             os.remove(image_path)
+            if photo_found: os.remove(photo_path)
 
             return jsonify({"pdf_filename": pdf_filename})
 
