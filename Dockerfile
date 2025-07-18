@@ -22,4 +22,4 @@ EXPOSE 10000
 
 # Define the command to run your app using Gunicorn
 # This tells Gunicorn to listen on all network interfaces on the port Render provides
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000"]
+CMD ["python", "app.py"]
