@@ -117,7 +117,7 @@ def extract_details_from_text(text):
 
 def generate_certificate_pdf(details, photo_path, pdf_path):
     """
-    Generates the final PDF, ensuring long text in the table wraps correctly.
+    Generates the final PDF with a larger font size for the entire document.
     """
     doc = SimpleDocTemplate(pdf_path, pagesize=letter, topMargin=0.75*inch, leftMargin=0.75*inch, rightMargin=0.75*inch)
     styles = getSampleStyleSheet()
@@ -130,9 +130,10 @@ def generate_certificate_pdf(details, photo_path, pdf_path):
                               parent=styles['Normal'],
                               alignment=TA_JUSTIFY))
 
+    # **FIX IS HERE**: Changed font to 'Helvetica-Bold' which is a standard, safe font.
     styles.add(ParagraphStyle(name='h1_Center',
                               parent=styles['h1'],
-                              fontName='Times-Bold',
+                              fontName='Helvetica-Bold', # Changed from Times-Bold
                               fontSize=22,
                               alignment=TA_CENTER))
 
@@ -164,17 +165,14 @@ def generate_certificate_pdf(details, photo_path, pdf_path):
         story.append(Spacer(1, 0.25 * inch))
 
     # --- BENEFICIARY DETAILS TABLE ---
-    # **FIX IS HERE**: Wrap the values (column 2) in Paragraph objects to allow text wrapping.
-    # The style for the cell content is taken from the updated 'Normal' style.
-    cell_style = styles['Normal'] 
     table_data = [
-        ['Aadhaar Number (Masked)', Paragraph(details.get('Aadhaar', 'N/A'), cell_style)],
-        ['Beneficiary ID',        Paragraph(details.get('Beneficiary ID', 'N/A'), cell_style)],
-        ['Scheme Name',           Paragraph(details.get('Scheme', 'N/A'), cell_style)],
-        ['Beneficiary Name',      Paragraph(details.get('Name', 'N/A'), cell_style)],
-        ['Mobile Number (Masked)',Paragraph(details.get('Mobile No', 'N/A'), cell_style)],
-        ['Category / Gender',     Paragraph(details.get('Category', 'N/A'), cell_style)],
-        ['(Scheme Belongs To:)',  Paragraph(details.get('Scheme Belongs To', 'N/A'), cell_style)],
+        ['Aadhaar Number (Masked)', Paragraph(details.get('Aadhaar', 'N/A'), styles['Normal'])],
+        ['Beneficiary ID',        Paragraph(details.get('Beneficiary ID', 'N/A'), styles['Normal'])],
+        ['Scheme Name',           Paragraph(details.get('Scheme', 'N/A'), styles['Normal'])],
+        ['Beneficiary Name',      Paragraph(details.get('Name', 'N/A'), styles['Normal'])],
+        ['Mobile Number (Masked)',Paragraph(details.get('Mobile No', 'N/A'), styles['Normal'])],
+        ['Category / Gender',     Paragraph(details.get('Category', 'N/A'), styles['Normal'])],
+        ['(Scheme Belongs To:)',  Paragraph(details.get('Scheme Belongs To', 'N/A'), styles['Normal'])],
     ]
     
     table = Table(table_data, colWidths=[2.5 * inch, 4.5 * inch])
@@ -183,7 +181,6 @@ def generate_certificate_pdf(details, photo_path, pdf_path):
         ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        # **FIX IS HERE**: Make only the first column (labels) bold.
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), 
         ('FONTSIZE', (0, 0), (-1, -1), 12),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
