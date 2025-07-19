@@ -180,6 +180,8 @@ def upload_file():
             photo_found = extract_and_save_photo(image_path, photo_path)
 
             extracted_text = pytesseract.image_to_string(image_path)
+            # --- DEBUGGING: Add this line to see the raw text ---
+            print(f"--- RAW OCR TEXT ---\n{extracted_text}\n--------------------")
             beneficiary_details = extract_details_from_text(extracted_text)
 
             pdf_filename = f"LifeCertificate-{unique_id}.pdf"
