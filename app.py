@@ -53,33 +53,62 @@ def extract_and_save_photo(image_path, output_path):
         return False
 
 def extract_details_from_text(text):
+    """
+    Parses OCR text with a more robust and flexible extraction logic.
+    """
     details = {
         "Name": "N/A", "Beneficiary ID": "N/A", "Date": "N/A", "Time": "N/A",
         "Certificate Number": "N/A", "Scheme": "N/A", "Aadhaar": "N/A",
         "Mobile No": "N/A", "Category": "N/A", "Scheme Belongs To": "N/A"
     }
-    match_date = re.search(r"as on\s*(\d{2}-\d{2}-\d{4})", text);
-    if match_date: details["Date"] = match_date.group(1)
-    match_time = re.search(r"as on\s*\d{2}-\d{2}-\d{4}\s*(\d{2}:\d{2}:\d{2})", text)
-    if match_time: details["Time"] = match_time.group(1)
+
+    # **FIX IS HERE**: Made the date and time patterns more flexible to handle OCR variations.
+    # It now accepts an optional hyphen or colon after "as on".
+    match_date = re.search(r"as on\s*[-:]?\s*(\d{2}-\d{2}-\d{4})", text)
+    if match_date:
+        details["Date"] = match_date.group(1)
+
+    match_time = re.search(r"as on\s*[-:]?\s*\d{2}-\d{2}-\d{4}\s*(\d{2}:\d{2}:\d{2})", text)
+    if match_time:
+        details["Time"] = match_time.group(1)
+    
     match_bsa = re.search(r"vide BSA ID\s*(\d+)", text)
-    if match_bsa: details["Certificate Number"] = match_bsa.group(1)
+    if match_bsa:
+        details["Certificate Number"] = match_bsa.group(1)
+
     match_name_p = re.search(r"Certified that the Beneficiary\s+(.*?)\s+having Beneficiary ID", text, re.DOTALL)
-    if match_name_p: details["Name"] = match_name_p.group(1).strip()
+    if match_name_p:
+        details["Name"] = match_name_p.group(1).strip()
+    
     match_aadhaar = re.search(r"Aadhaar:\s*(\S+)", text)
-    if match_aadhaar: details["Aadhaar"] = match_aadhaar.group(1)
+    if match_aadhaar:
+        details["Aadhaar"] = match_aadhaar.group(1)
+        
     match_ben_id = re.search(r"Beneficiary ID:\s*(\S+)", text)
-    if match_ben_id: details["Beneficiary ID"] = match_ben_id.group(1)
+    if match_ben_id:
+        details["Beneficiary ID"] = match_ben_id.group(1)
+
     match_name = re.search(r"Name:\s*(.*)", text)
-    if match_name: details["Name"] = match_name.group(1).strip()
+    if match_name:
+        details["Name"] = match_name.group(1).strip()
+        
     match_mobile = re.search(r"Mobile No:\s*(\S+)", text)
-    if match_mobile: details["Mobile No"] = match_mobile.group(1)
+    if match_mobile:
+        details["Mobile No"] = match_mobile.group(1)
+
     match_cat = re.search(r"Cat/Gen:\s*(\S+)", text)
-    if match_cat: details["Category"] = match_cat.group(1)
+    if match_cat:
+        details["Category"] = match_cat.group(1)
+
     match_scheme = re.search(r"Scheme:\s*(.*?)\s*Name:", text, re.DOTALL)
-    if match_scheme: details["Scheme"] = " ".join(match_scheme.group(1).strip().split())
+    if match_scheme:
+        scheme_text = " ".join(match_scheme.group(1).strip().split())
+        details["Scheme"] = scheme_text
+        
     match_belongs_to = re.search(r"Scheme Belongs to:\s*(.*)", text, re.IGNORECASE)
-    if match_belongs_to: details["Scheme Belongs To"] = match_belongs_to.group(1).strip()
+    if match_belongs_to:
+        details["Scheme Belongs To"] = match_belongs_to.group(1).strip()
+
     return details
 
 def generate_certificate_pdf(details, photo_path, pdf_path):
